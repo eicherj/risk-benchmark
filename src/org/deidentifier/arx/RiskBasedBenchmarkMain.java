@@ -22,17 +22,40 @@ import java.util.Arrays;
 import java.util.Iterator;
 
 import org.deidentifier.arx.ARXLattice.ARXNode;
-import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkDataset;
+import org.deidentifier.arx.BenchmarkDataset.BenchmarkDatafile;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkMetric;
+import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkPrivacyCriterium;
+
+//import de.linearbits.subframe.Benchmark;
+//import de.linearbits.subframe.analyzer.buffered.BufferedArithmeticMeanAnalyzer;
+//import de.linearbits.subframe.analyzer.buffered.BufferedStandardDeviationAnalyzer;
 /**
  * Main benchmark class.
  * 
  * @author Fabian Prasser
  */
 public class RiskBasedBenchmarkMain {
-
+    
     /** Repetitions */
-    private static final int REPETITIONS = 3;
+    private static final int       REPETITIONS       = 3;
+//    /** The benchmark instance */
+//    private static final Benchmark BENCHMARK         = new Benchmark(new String[] { "Algorithm", "Dataset", "Criteria" });
+//    /** Label for execution times */
+//    public static final int        EXECUTION_TIME    = BENCHMARK.addMeasure("Execution time");
+//    /** Label for number of checks */
+//    public static final int        NUMBER_OF_CHECKS  = BENCHMARK.addMeasure("Number of checks");
+//    /** Label for number of roll-ups */
+//    public static final int        NUMBER_OF_ROLLUPS = BENCHMARK.addMeasure("Number of rollups");
+//    
+//    // TODO include information loss
+//
+//    static {
+//        BENCHMARK.addAnalyzer(EXECUTION_TIME, new BufferedArithmeticMeanAnalyzer(REPETITIONS));
+//        BENCHMARK.addAnalyzer(EXECUTION_TIME, new BufferedStandardDeviationAnalyzer(REPETITIONS));
+//        BENCHMARK.addAnalyzer(NUMBER_OF_CHECKS, new BufferedArithmeticMeanAnalyzer(REPETITIONS));
+//        BENCHMARK.addAnalyzer(NUMBER_OF_ROLLUPS, new BufferedArithmeticMeanAnalyzer(REPETITIONS));
+//    }
+    
 
     /**
      * Main entry point
@@ -42,39 +65,67 @@ public class RiskBasedBenchmarkMain {
      */
     public static void main(String[] args) throws IOException {
 
-        performHeuraklesFlashComparison();
+//        performHeuraklesFlashComparison();
         performHeuraklesSelfComparison();
     }
 
     private static void performHeuraklesFlashComparison() throws IOException {
-        // Repeat for each data set
-        for (BenchmarkDataset dataset : RiskBasedBenchmarkSetup.getFlashComparisonDatasets()) {
-            for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {
-                for (double suppression : RiskBasedBenchmarkSetup.getSuppressionValues()) {
-                    ARXConfiguration flashConfig = RiskBasedBenchmarkSetup.getConfiguration(metric, suppression, null);
-                    int []flashRuntimes = new int[REPETITIONS];
-                    for (int i = 0; i < REPETITIONS; i++) {
-                        flashRuntimes[i] = anonymize(flashConfig, dataset);
+        // repeat for each privacy criterium
+        for (BenchmarkPrivacyCriterium criterium : RiskBasedBenchmarkSetup.getPrivacyCriteria()) {
+            // Repeat for each data set
+            for (BenchmarkDatafile datafile : RiskBasedBenchmarkSetup.getFlashComparisonDatafiles()) {
+                BenchmarkDataset dataset = new BenchmarkDataset(datafile, datafile.equals(BenchmarkDatafile.ACS13) ? 10 : null);
+                // repeat for each metric
+                for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {
+                    // repeat for each suppression factor
+                    for (double suppression : RiskBasedBenchmarkSetup.getSuppressionValues()) {
+                        // build a Flash config with those parameters; a runtime limit is not needed by flash
+                        ARXConfiguration flashConfig = RiskBasedBenchmarkSetup.getConfiguration(criterium, metric, suppression, null);
+                        // we perform repetitive anonymization runs ...
+                        int []flashRuntimes = new int[REPETITIONS];
+                        for (int i = 0; i < REPETITIONS; i++) {
+                            flashRuntimes[i] = anonymize(dataset, flashConfig);
+                        }
+                        // ... and calculate the arithmetic mean of those runs
+                        int meanFlashRuntime = (int) Math.round(computeArithmeticMean(flashRuntimes));
+                        // build a identical Heurakles configuration using the runtime limit, that we just calculated
+                        ARXConfiguration heuraklesConfig = RiskBasedBenchmarkSetup.getConfiguration(criterium, metric, suppression, meanFlashRuntime);
+                        anonymize(dataset, heuraklesConfig);
                     }
-                    int heuraklesRuntime = (int) getGeometricMean(flashRuntimes);
-                    ARXConfiguration heuraklesConfig = RiskBasedBenchmarkSetup.getConfiguration(metric, suppression, heuraklesRuntime);
-                    anonymize(heuraklesConfig, dataset);
                 }
             }
         }
     }
 
-    private static double getGeometricMean(int[] runtimeArray) {
-        double value = 1.0;
-        
-        for (int i = 0; i < runtimeArray.length; i++) {
-            value *= runtimeArray[i];
+    private static void performHeuraklesSelfComparison() throws IOException {
+        // repeat for each privacy criterium
+        for (BenchmarkPrivacyCriterium criterium : RiskBasedBenchmarkSetup.getPrivacyCriteria()) {
+            // Repeat for each data set, each dataset represents 
+            for (BenchmarkDatafile datafile : RiskBasedBenchmarkSetup.getSelfComparisonDatafiles()) {
+                // repeat for each metric
+                for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {
+                    // repeat for each suppression factor
+                    for (double suppression : RiskBasedBenchmarkSetup.getSuppressionValues()) {
+                        // repeat for different QI counts
+                        for (int qiCount : RiskBasedBenchmarkSetup.getSelfComparisonQiCounts()) {
+                            BenchmarkDataset dataset = new BenchmarkDataset(datafile, qiCount);
+                            // build a Heurakles configuration
+                            ARXConfiguration heuraklesConfig = RiskBasedBenchmarkSetup.getConfiguration(criterium, metric, suppression, 600000);
+                            anonymize(dataset, heuraklesConfig);
+                        }
+                    }
+                }
+            }
         }
-        value = Math.pow(value, 1.0 / ((double) runtimeArray.length));
-        return Math.round(value);
     }
 
-    private static void performHeuraklesSelfComparison() throws IOException {
+    private static double computeArithmeticMean(int[] valueArray) {
+        double sum = 0.0;
+        
+        for (int i = 0; i < valueArray.length; i++) {
+            sum += valueArray[i];
+        }
+        return sum / valueArray.length;
     }
 
     /**
@@ -97,8 +148,8 @@ public class RiskBasedBenchmarkMain {
      * @param dataset
      * @throws IOException
      */
-    private static int anonymize(ARXConfiguration config, BenchmarkDataset dataset) throws IOException {
-        Data data = RiskBasedBenchmarkSetup.getData(dataset);
+    private static int anonymize(BenchmarkDataset dataset, ARXConfiguration config) throws IOException {
+        Data data = RiskBasedBenchmarkSetup.getData(dataset.getDatafile(), dataset.getCustomQiCount());
         ARXAnonymizer anonymizer = new ARXAnonymizer();
         long startTime = System.currentTimeMillis();
         ARXResult result = anonymizer.anonymize(data, config);
@@ -110,7 +161,7 @@ public class RiskBasedBenchmarkMain {
             searchSpaceSize *= data.getDefinition().getHierarchy(qi)[0].length;
         }
         Iterator<String[]> iter = result.getOutput().iterator();
-        System.out.println(dataset);
+        System.out.println(dataset.getDatafile());
         System.out.println(" - Time          : " + startTime + " [ms]");
         System.out.println(" - QIs           : " + data.getDefinition().getQuasiIdentifyingAttributes().size());
         System.out.println(" - Search space  : " + searchSpaceSize);
