@@ -18,8 +18,14 @@
 package org.deidentifier.arx;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.deidentifier.arx.AttributeType.Hierarchy;
+import org.deidentifier.arx.aggregates.HierarchyBuilder;
+import org.deidentifier.arx.aggregates.HierarchyBuilderIntervalBased;
+import org.deidentifier.arx.aggregates.HierarchyBuilder.Type;
+import org.deidentifier.arx.criteria.KAnonymity;
 import org.deidentifier.arx.metric.Metric;
 
 /**
@@ -27,38 +33,138 @@ import org.deidentifier.arx.metric.Metric;
  * @author Fabian Prasser
  */
 public class RiskBasedBenchmarkSetup {
+    
+    private static final String acs13DatafilePath="data/ss13acs_68726Recs_Massachusetts_edited.csv";
+    /**
+     * Returns all datasets for the benchmark
+     * @return
+     */
+    public static BenchmarkDataset[] getFlashComparisonDatasets() {
+        return new BenchmarkDataset[] { 
+         BenchmarkDataset.ADULT,
+//         BenchmarkDataset.CUP,
+//         BenchmarkDataset.FARS,
+//         BenchmarkDataset.ATUS,
+//         BenchmarkDataset.IHIS,
+         BenchmarkDataset.ACS13_09,
+        };
+    }
+    
+    /**
+     * Returns all metrics
+     * @return
+     */
+    public static BenchmarkMetric[] getMetrics() {
+        return new BenchmarkMetric[] { 
+//         BenchmarkMetric.AECS,
+         BenchmarkMetric.LOSS
+        };
+    }
+    
+    /**
+     * Returns all suppression values
+     * @return
+     */
+    public static double[] getSuppressionValues() {
+        return new double[] { 
+                             0.0,
+//                             1.0
+        };
+    }
 
     public static enum BenchmarkDataset {
-        ADULT {
+        ADULT (null){
             @Override
             public String toString() {
                 return "Adult";
             }
         },
-        CUP {
+        CUP (null){
             @Override
             public String toString() {
                 return "Cup";
             }
         },
-        FARS {
+        FARS (null){
             @Override
             public String toString() {
                 return "Fars";
             }
         },
-        ATUS {
+        ATUS (null){
             @Override
             public String toString() {
                 return "Atus";
             }
         },
-        IHIS {
+        IHIS (null){
             @Override
             public String toString() {
                 return "Ihis";
             }
         },
+        ACS13_09 (9){
+            @Override
+            public String toString() {
+                return "ACS13_with_09_QIs";
+            }
+        },
+        ACS13_15 (15){
+            @Override
+            public String toString() {
+                return "ACS13_with_15_QIs";
+            }
+        },
+        ACS13_20 (20){
+            @Override
+            public String toString() {
+                return "ACS13_with_20_QIs";
+            }
+        },
+        ACS13_25 (25){
+            @Override
+            public String toString() {
+                return "ACS13_with_25_QIs";
+            }
+        },
+        ACS13_30 (30){
+            @Override
+            public String toString() {
+                return "ACS13_with_30_QIs";
+            }
+        };
+        
+        // the dataset can be configured to use only a subset
+        // of the QIs contained in the dataset
+        private final Integer customQiCount;
+        
+        /**
+         * @param customQiCount if not null, the dataset will be configured to use only a subset 
+         * of the first "customQiCount" QIs contained in the dataset. If null, all QIs in the
+         * dataset will be used
+         */
+        private BenchmarkDataset(Integer customQiCount) {
+            this.customQiCount = customQiCount;
+        }
+        
+        public Integer getCustomQiCount() {
+            return this.customQiCount;
+        }
+    }
+    
+    public static enum BenchmarkMetric {
+        AECS {
+            @Override
+            public String toString() {
+                return "AECS";
+            }
+        },
+        LOSS {
+            @Override
+            public String toString() {
+                return "Loss";
+            }
+        }
     }
 
     /**
@@ -68,10 +174,22 @@ public class RiskBasedBenchmarkSetup {
      * @return
      * @throws IOException
      */
-    public static ARXConfiguration getConfiguration(BenchmarkDataset dataset) throws IOException {
+    public static ARXConfiguration getConfiguration(BenchmarkMetric metric,
+                                                    double suppression,
+                                                    Integer runtimeLimitMs) throws IOException {
         ARXConfiguration config = ARXConfiguration.create();
-        config.setMetric(Metric.createLossMetric());
-        config.setMaxOutliers(1.0d);
+        switch (metric) {
+        case AECS:config.setMetric(Metric.createAECSMetric());
+            break;
+        case LOSS:
+            config.setMetric(Metric.createLossMetric());
+            break;
+        default:
+            break;
+        
+        }
+        config.addCriterion(new KAnonymity(5));
+        config.setMaxOutliers(suppression);
         return config;
     }
 
@@ -83,7 +201,8 @@ public class RiskBasedBenchmarkSetup {
      * @throws IOException
      */
 
-    public static Data getData(BenchmarkDataset dataset) throws IOException {
+    public static Data getData(BenchmarkDataset dataset
+                               ) throws IOException {
         Data data = null;
         switch (dataset) {
         case ADULT:
@@ -101,6 +220,13 @@ public class RiskBasedBenchmarkSetup {
         case IHIS:
             data = Data.create("data/ihis.csv", ';');
             break;
+        case ACS13_09:
+        case ACS13_15:
+        case ACS13_20:
+        case ACS13_25:
+        case ACS13_30:
+            data = Data.create(acs13DatafilePath, ';');
+            break;
         default:
             throw new RuntimeException("Invalid dataset");
         }
@@ -110,20 +236,6 @@ public class RiskBasedBenchmarkSetup {
             }
 
         return data;
-    }
-
-    /**
-     * Returns all datasets
-     * @return
-     */
-    public static BenchmarkDataset[] getDatasets() {
-        return new BenchmarkDataset[] { 
-         BenchmarkDataset.ADULT,
-         BenchmarkDataset.CUP,
-         BenchmarkDataset.FARS,
-         BenchmarkDataset.ATUS,
-         BenchmarkDataset.IHIS
-                                        };
     }
 
     /**
@@ -145,6 +257,37 @@ public class RiskBasedBenchmarkSetup {
             return Hierarchy.create("hierarchies/fars_hierarchy_" + attribute + ".csv", ';');
         case IHIS:
             return Hierarchy.create("hierarchies/ihis_hierarchy_" + attribute + ".csv", ';');
+        case ACS13_09:
+        case ACS13_15:
+        case ACS13_20:
+        case ACS13_25:
+        case ACS13_30:
+            String filePath = "hierarchies/ss13acs_hierarchy_" + SS13PMA_SEMANTIC_QI.valueOf(attribute).fileBaseName();
+            switch (SS13PMA_SEMANTIC_QI.valueOf(attribute).getType()) {
+            case INTERVAL:
+                filePath += ".ahs";
+                HierarchyBuilder<?> loaded = HierarchyBuilder.create(filePath);
+                if (loaded.getType() == Type.INTERVAL_BASED) {
+                    HierarchyBuilderIntervalBased<?> builder = (HierarchyBuilderIntervalBased<?>) loaded;
+                    Data data = Data.create(acs13DatafilePath, ';');
+                    int index = data
+                                    .getHandle()
+                                    .getColumnIndexOf(attribute);
+                    String[] dataArray = data
+                                             .getHandle()
+                                             .getStatistics()
+                                             .getDistinctValues(index);
+                    builder.prepare(dataArray);
+                    return builder.build();
+                } else {
+                    throw new RuntimeException("Inconsistent Hierarchy types: expected: interval-based, found: " + loaded.getType());
+                }
+            case ORDER:
+                filePath += ".csv";
+                return Hierarchy.create(filePath, ';');
+            default:
+                break;
+            }
         default:
             throw new RuntimeException("Invalid dataset");
         }
@@ -205,8 +348,89 @@ public class RiskBasedBenchmarkSetup {
                                     "SEX",
                                     "YEAR",
                                     "EDUC"};
+        case ACS13_09:
+        case ACS13_15:
+        case ACS13_20:
+        case ACS13_25:
+        case ACS13_30:
+            ArrayList<String> al = new ArrayList<>();
+            for (SS13PMA_SEMANTIC_QI qi : Arrays.copyOf(SS13PMA_SEMANTIC_QI.values(), dataset.getCustomQiCount())) {
+                al.add(qi.toString());
+            }
+            String[] qiArr = new String[al.size()];
+            qiArr = al.toArray(qiArr);
+            return qiArr;
         default:
             throw new RuntimeException("Invalid dataset");
+        }
+    }
+    
+
+
+    private enum SS13PMA_SEMANTIC_QI {
+        AGEP(HierarchyType.INTERVAL), // height 10
+        CIT(HierarchyType.ORDER), // height 06
+        COW(HierarchyType.ORDER), // height 06
+        DDRS(HierarchyType.ORDER), // height 05
+        DEAR(HierarchyType.ORDER), // height 05
+        DEYE(HierarchyType.ORDER), // height 05
+        DOUT(HierarchyType.ORDER), // height 04
+        DPHY(HierarchyType.ORDER), // height 04
+        DREM(HierarchyType.ORDER), // height 03
+        FER(HierarchyType.ORDER), // height 02
+        GCL(HierarchyType.ORDER), // height 02
+        HINS1(HierarchyType.ORDER), // height 02
+        HINS2(HierarchyType.ORDER), // height 02
+        HINS3(HierarchyType.ORDER), // height 02
+        HINS4(HierarchyType.ORDER), // height 02
+        HINS5(HierarchyType.ORDER), // height 02
+        HINS6(HierarchyType.ORDER), // height 02
+        HINS7(HierarchyType.ORDER), // height 02
+        INTP(HierarchyType.INTERVAL), // height 02
+        MAR(HierarchyType.ORDER), // height 02
+        MARHD(HierarchyType.ORDER), // height 02
+        MARHM(HierarchyType.ORDER), // height 02
+        MARHW(HierarchyType.ORDER), // height 02
+        MIG(HierarchyType.ORDER), // height 02
+        MIL(HierarchyType.ORDER), // height 02
+        PWGTP(HierarchyType.INTERVAL), // height 03
+        RELP(HierarchyType.ORDER), // height 04
+        SCHG(HierarchyType.ORDER), // height 02
+        SCHL(HierarchyType.ORDER), // height 02
+        SEX(HierarchyType.ORDER), // height 02
+        ;
+
+        private enum HierarchyType {
+            INTERVAL, // interval based
+            ORDER // order based
+        }
+
+        private final String        distinctionLetter;
+        private final HierarchyType ht;
+
+        // constructor
+        SS13PMA_SEMANTIC_QI(HierarchyType ht) {
+            this.ht = ht;
+
+            switch (ht) {
+            case INTERVAL:
+                distinctionLetter = "i";
+                break;
+            case ORDER:
+                distinctionLetter = "o";
+                break;
+            default:
+                distinctionLetter = "x";
+            }
+        }
+
+        // needed for file name generation
+        public String fileBaseName() {
+            return (distinctionLetter + "_" + this.name());
+        }
+
+        public HierarchyType getType() {
+            return ht;
         }
     }
 }

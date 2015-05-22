@@ -22,10 +22,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 
 import org.deidentifier.arx.ARXLattice.ARXNode;
-import org.deidentifier.arx.ARXPopulationModel.Region;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkDataset;
-import org.deidentifier.arx.criteria.PopulationUniqueness;
-
+import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkMetric;
 /**
  * Main benchmark class.
  * 
@@ -34,7 +32,7 @@ import org.deidentifier.arx.criteria.PopulationUniqueness;
 public class RiskBasedBenchmarkMain {
 
     /** Repetitions */
-    private static final int REPETITIONS = 5;
+    private static final int REPETITIONS = 3;
 
     /**
      * Main entry point
@@ -44,12 +42,39 @@ public class RiskBasedBenchmarkMain {
      */
     public static void main(String[] args) throws IOException {
 
+        performHeuraklesFlashComparison();
+        performHeuraklesSelfComparison();
+    }
+
+    private static void performHeuraklesFlashComparison() throws IOException {
         // Repeat for each data set
-        for (BenchmarkDataset data : RiskBasedBenchmarkSetup.getDatasets()) {
-            for (int i = 0; i < REPETITIONS; i++) {
-                anonymize(data);
+        for (BenchmarkDataset dataset : RiskBasedBenchmarkSetup.getFlashComparisonDatasets()) {
+            for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {
+                for (double suppression : RiskBasedBenchmarkSetup.getSuppressionValues()) {
+                    ARXConfiguration flashConfig = RiskBasedBenchmarkSetup.getConfiguration(metric, suppression, null);
+                    int []flashRuntimes = new int[REPETITIONS];
+                    for (int i = 0; i < REPETITIONS; i++) {
+                        flashRuntimes[i] = anonymize(flashConfig, dataset);
+                    }
+                    int heuraklesRuntime = (int) getGeometricMean(flashRuntimes);
+                    ARXConfiguration heuraklesConfig = RiskBasedBenchmarkSetup.getConfiguration(metric, suppression, heuraklesRuntime);
+                    anonymize(heuraklesConfig, dataset);
+                }
             }
         }
+    }
+
+    private static double getGeometricMean(int[] runtimeArray) {
+        double value = 1.0;
+        
+        for (int i = 0; i < runtimeArray.length; i++) {
+            value *= runtimeArray[i];
+        }
+        value = Math.pow(value, 1.0 / ((double) runtimeArray.length));
+        return Math.round(value);
+    }
+
+    private static void performHeuraklesSelfComparison() throws IOException {
     }
 
     /**
@@ -72,21 +97,21 @@ public class RiskBasedBenchmarkMain {
      * @param dataset
      * @throws IOException
      */
-    private static void anonymize(BenchmarkDataset dataset) throws IOException {
+    private static int anonymize(ARXConfiguration config, BenchmarkDataset dataset) throws IOException {
         Data data = RiskBasedBenchmarkSetup.getData(dataset);
-        ARXConfiguration config = RiskBasedBenchmarkSetup.getConfiguration(dataset);
-        config.addCriterion(new PopulationUniqueness(0.01d, ARXPopulationModel.create(Region.USA)));
         ARXAnonymizer anonymizer = new ARXAnonymizer();
-        long time = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
         ARXResult result = anonymizer.anonymize(data, config);
-        time = System.currentTimeMillis() - time;
+        long finishTime = System.currentTimeMillis();
+        int runtime = (int)(finishTime - startTime);
+        startTime = System.currentTimeMillis() - startTime;
         int searchSpaceSize = 1;
         for (String qi : data.getDefinition().getQuasiIdentifyingAttributes()) {
             searchSpaceSize *= data.getDefinition().getHierarchy(qi)[0].length;
         }
         Iterator<String[]> iter = result.getOutput().iterator();
         System.out.println(dataset);
-        System.out.println(" - Time          : " + time + " [ms]");
+        System.out.println(" - Time          : " + startTime + " [ms]");
         System.out.println(" - QIs           : " + data.getDefinition().getQuasiIdentifyingAttributes().size());
         System.out.println(" - Search space  : " + searchSpaceSize);
         System.out.println(" - Checked       : " + getCheckedTransformations(result));
@@ -97,6 +122,8 @@ public class RiskBasedBenchmarkMain {
         System.out.println(" - Heights       : " + Arrays.toString(result.getLattice().getTop().getTransformation()));
         System.out.println(" - Total         : " + data.getHandle().getNumRows());
         System.out.println(" - Infoloss      : " + result.getGlobalOptimum().getMinimumInformationLoss().toString());
+        
+        return runtime;
     }
 
     /**
