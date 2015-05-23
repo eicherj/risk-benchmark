@@ -35,9 +35,12 @@ import org.deidentifier.arx.metric.Metric;
  * @author Fabian Prasser
  */
 public class RiskBasedBenchmarkSetup {
+	
+	
+	// configuration section
     
+	// file path for acs13 data
     private static final String acs13DatafilePath="data/ss13acs_68726Recs_Massachusetts_edited.csv";
-    
     
     /**
      * Returns the datafiles for the Heurakles-Flash-Comparison
@@ -73,7 +76,9 @@ public class RiskBasedBenchmarkSetup {
     public static int[] getSelfComparisonQiCounts() {
         return new int[] {
                           5,
-                          6
+                          6,
+                          7,
+                          8
 //          15,
 //          20,
 //          25,
@@ -114,9 +119,22 @@ public class RiskBasedBenchmarkSetup {
         };
     }
     
+    
+    // defintion section
+    
     public static enum BenchmarkPrivacyCriterium {
-        FIVE_ANONYMITY,
-        NULL_DOT_01_UNIQUENESS;
+        FIVE_ANONYMITY {
+            @Override
+            public String toString() {
+                return "(5)-Anonymity";
+            }
+        },
+        NULL_DOT_01_UNIQUENESS {
+            @Override
+            public String toString() {
+                return "(0.01)-Uniqueness";
+            }
+        };
     }
     
 
@@ -140,19 +158,19 @@ public class RiskBasedBenchmarkSetup {
      * @param criterium
      * @param metric
      * @param suppression
-     * @param runtimeLimitMs
+     * @param runTimeLimitMillis
      * @return
      * @throws IOException
      */
     public static ARXConfiguration getConfiguration(BenchmarkPrivacyCriterium criterium,
                                                     BenchmarkMetric metric,
                                                     double suppression,
-                                                    Integer runtimeLimitMs) throws IOException {
+                                                    Long runTimeLimitMillis) throws IOException {
         
-        // TODO implement configuration of runtimeLimit
-        
+    	// create empty ARX configuration
         ARXConfiguration config = ARXConfiguration.create();
         
+        // configure privacy criterium
         switch (criterium) {
         case FIVE_ANONYMITY:
             config.addCriterion(new KAnonymity(5));
@@ -164,6 +182,7 @@ public class RiskBasedBenchmarkSetup {
             throw new RuntimeException("Invalid criterium");        
         }
         
+        // configure metric
         switch (metric) {
         case AECS:config.setMetric(Metric.createAECSMetric());
             break;
@@ -171,10 +190,14 @@ public class RiskBasedBenchmarkSetup {
             config.setMetric(Metric.createLossMetric());
             break;
         default:
-            throw new RuntimeException("Invalid metric");
-        
+            throw new RuntimeException("Invalid metric");        
         }
+        
+        // configure suppression factor
         config.setMaxOutliers(suppression);
+        
+        // TODO implement configuration of runtimeLimit
+        
         return config;
     }
 
@@ -186,9 +209,10 @@ public class RiskBasedBenchmarkSetup {
      * @throws IOException
      */
 
-    public static Data getData(BenchmarkDatafile datafile, Integer customQiCount
-                               ) throws IOException {
-        Data data = null;
+    public static Data getData(BenchmarkDataset dataset) throws IOException {
+        BenchmarkDatafile datafile = dataset.getDatafile();
+
+        Data data;
         switch (datafile) {
         case ADULT:
             data = Data.create("data/adult.csv", ';');
@@ -211,10 +235,9 @@ public class RiskBasedBenchmarkSetup {
         default:
             throw new RuntimeException("Invalid dataset");
         }
-
-            for (String qi : getQuasiIdentifyingAttributes(datafile, customQiCount)) {
-                data.getDefinition().setAttributeType(qi, getHierarchy(datafile, qi));
-            }
+        for (String qi : getQuasiIdentifyingAttributes(datafile, dataset.getCustomQiCount())) {
+        	data.getDefinition().setAttributeType(qi, getHierarchy(datafile, qi));
+        }
 
         return data;
     }
@@ -264,13 +287,13 @@ public class RiskBasedBenchmarkSetup {
                 builder.prepare(dataArray);
                 return builder.build();
             } else {
-                throw new RuntimeException("Inconsistent Hierarchy types: expected: interval-based, found: " + loaded.getType());
+                throw new RuntimeException("Inconsistent hierarchy types. Expected: interval-based, found: " + loaded.getType());
             }
         case ORDER:
             filePath += ".csv";
             return Hierarchy.create(filePath, ';');
         default:
-            throw new RuntimeException("Invalid Hierarchy Type");
+            throw new RuntimeException("Invalid hierarchy Type");
         }
     }
 
@@ -330,7 +353,7 @@ public class RiskBasedBenchmarkSetup {
                                     "YEAR",
                                     "EDUC"};
         case ACS13:
-            return Arrays.copyOf(ACS13_SEMANTIC_QI.names(), customQiCount);
+            return Arrays.copyOf(ACS13_SEMANTIC_QI.getNames(), customQiCount != null ? customQiCount : ACS13_SEMANTIC_QI.values().length);
         default:
             throw new RuntimeException("Invalid dataset");
         }
@@ -404,7 +427,7 @@ public class RiskBasedBenchmarkSetup {
             return ht;
         }
         
-        public static String[] names() {
+        public static String[] getNames() {
             ACS13_SEMANTIC_QI[] qis = values();
             String[] names = new String[qis.length];
 
