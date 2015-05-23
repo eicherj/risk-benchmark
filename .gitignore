@@ -6,3 +6,5 @@
 .settings
 /results.ods
 /.~lock.results.ods#
+/resultFlashCompare.csv
+/resultSelfCompare.csv
