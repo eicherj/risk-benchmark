@@ -1,2 +1,2 @@
 # Heurakles Benchmarks
-Two simple benchmark for comparing the Heurakles Algorithm with Flash and with itself using different parameters
+Two simple benchmarks for comparing the Heurakles algorithm with Flash and with itself
