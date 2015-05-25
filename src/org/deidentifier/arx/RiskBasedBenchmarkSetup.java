@@ -104,7 +104,7 @@ public class RiskBasedBenchmarkSetup {
     public static BenchmarkPrivacyCriterium[] getPrivacyCriteria() {
         return new BenchmarkPrivacyCriterium[] { 
                              BenchmarkPrivacyCriterium.FIVE_ANONYMITY,
-                             BenchmarkPrivacyCriterium.NULL_DOT_01_UNIQUENESS
+                             BenchmarkPrivacyCriterium.ZERO_DOT_01_UNIQUENESS
         };
     }
     
@@ -118,7 +118,7 @@ public class RiskBasedBenchmarkSetup {
                 return "(5)-Anonymity";
             }
         },
-        NULL_DOT_01_UNIQUENESS {
+        ZERO_DOT_01_UNIQUENESS {
             @Override
             public String toString() {
                 return "(0.01)-Uniqueness";
@@ -164,7 +164,7 @@ public class RiskBasedBenchmarkSetup {
         case FIVE_ANONYMITY:
             config.addCriterion(new KAnonymity(5));
             break;
-        case NULL_DOT_01_UNIQUENESS:
+        case ZERO_DOT_01_UNIQUENESS:
             config.addCriterion(new PopulationUniqueness(0.01, ARXPopulationModel.create(Region.USA)));
             break;
         default:
