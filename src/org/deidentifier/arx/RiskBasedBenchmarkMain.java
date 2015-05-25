@@ -21,7 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 
-import org.deidentifier.arx.BenchmarkDataset.BenchmarkDatafile;
+import org.deidentifier.arx.QiConfiguredDataset.BenchmarkDatafile;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkMetric;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkPrivacyCriterium;
 
@@ -37,7 +37,7 @@ import de.linearbits.subframe.io.CSVLine;
 public class RiskBasedBenchmarkMain {
     
     /** Repetitions */
-    private static final int       REPETITIONS       = 1;
+    private static final int       REPETITIONS       = 3;
     
     /** The variables, over which the benchmark iterates */
     private static final String[] BENCHMARK_VARIABLES = new String[] { "Criterium", "Dataset", "CustomQIs", "Metric", "Suppression", "Algorithm" };
@@ -78,7 +78,7 @@ public class RiskBasedBenchmarkMain {
         	
             // repeat for each data set
             for (BenchmarkDatafile datafile : RiskBasedBenchmarkSetup.getFlashComparisonDatafiles()) {
-                BenchmarkDataset dataset = new BenchmarkDataset(datafile, datafile.equals(BenchmarkDatafile.ACS13) ? 9 : null);
+                QiConfiguredDataset dataset = new QiConfiguredDataset(datafile, datafile.equals(BenchmarkDatafile.ACS13) ? 9 : null);
                 
                 // repeat for each metric
                 for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {
@@ -88,11 +88,11 @@ public class RiskBasedBenchmarkMain {
                     	String resultFileName = "resultFlashCompare.csv";
                     	
                     	// perform the Flash run
-                        long avgExecutionTimeMillis = performBenchmark(privCriterium, dataset, metric, suppression, "Flash", null, resultFileName);
+                        long avgExecutionTimeMillis = runAndRecordBenchmark(privCriterium, dataset, metric, suppression, "Flash", null, resultFileName);
                         
                         // perform a Heurakles run with the same configuration and the execution time
                         // of the previous Flash run as Heurakles' runtime limit
-                        performBenchmark(privCriterium, dataset, metric, suppression, "Heurakles", avgExecutionTimeMillis, resultFileName);
+                        runAndRecordBenchmark(privCriterium, dataset, metric, suppression, "Heurakles", avgExecutionTimeMillis, resultFileName);
                     }
                 }
             }
@@ -115,8 +115,8 @@ public class RiskBasedBenchmarkMain {
                     	
                         // repeat for different QI counts
                         for (int qiCount : RiskBasedBenchmarkSetup.getSelfComparisonQiCounts()) {
-                            BenchmarkDataset dataset = new BenchmarkDataset(datafile, qiCount);
-                            performBenchmark(criterium, dataset, metric, suppression, "Heurakles", Long.valueOf(600000), "resultSelfCompare.csv");
+                            QiConfiguredDataset dataset = new QiConfiguredDataset(datafile, qiCount);
+                            runAndRecordBenchmark(criterium, dataset, metric, suppression, "Heurakles", Long.valueOf(600000), "resultSelfCompare.csv");
                         }
                     }
                 }
@@ -127,18 +127,17 @@ public class RiskBasedBenchmarkMain {
 	/**
 	 * @param privCriterium
 	 * @param dataset
-	 * @param customQiCount
 	 * @param metric
 	 * @param suppression
 	 * @param algo
 	 * @param runtimeLimitMillis
 	 * @param resultFileName
-	 * @return
+	 * @return the execution time of the algorithm
 	 * @throws IOException
 	 */
-	private static long performBenchmark(
+	private static long runAndRecordBenchmark(
 			BenchmarkPrivacyCriterium privCriterium,
-			BenchmarkDataset dataset,
+			QiConfiguredDataset dataset,
 			BenchmarkMetric metric,
 			double suppression,
 			String algo,
@@ -146,22 +145,20 @@ public class RiskBasedBenchmarkMain {
 			String resultFileName) throws IOException {
         
 		// tell the user what's happening
-    	printStatus(algo, privCriterium, dataset, metric, suppression);
+		System.out.println("Benchmarking (" + algo + " / " + privCriterium + " / " + dataset.getDatafile().toString() + " / " + 
+    			dataset.getCustomQiCount() + " / " +  metric.toString() + " / " + suppression + ")");
     	
     	// create the anonymizer
     	ARXAnonymizer anonymizer = new ARXAnonymizer();
 		
         // build a algorithm configuration based on the benchmark parameters
-        ARXConfiguration anonConfig = RiskBasedBenchmarkSetup.getConfiguration(privCriterium, metric, suppression, runtimeLimitMillis);
-        
-        // prepare the data file
-        Data data = RiskBasedBenchmarkSetup.getData(dataset);
+        ARXConfiguration anonConfig = RiskBasedBenchmarkSetup.prepareConfiguration(privCriterium, metric, suppression, runtimeLimitMillis);
         
 		// start benchmarking
 		BENCHMARK.addRun(privCriterium.toString(), dataset.getDatafile().toString(), dataset.getCustomQiCount(), metric.toString(), suppression, algo);
 		for (int i = 0; i < REPETITIONS; i++) {
 			BENCHMARK.startTimer(EXECUTION_TIME);
-		    ARXResult result = anonymizer.anonymize(data, anonConfig);
+		    ARXResult result = anonymizer.anonymize(dataset.toArxData(), anonConfig);
 		    BENCHMARK.addStopTimer(EXECUTION_TIME);
 		}
 		
@@ -170,22 +167,11 @@ public class RiskBasedBenchmarkMain {
 		
 		return getLastExecutionTimeMillis(BENCHMARK);
 	}
-
-	private static void printStatus(
-			String algo,
-			BenchmarkPrivacyCriterium privCriterium,
-			BenchmarkDataset dataset,
-			BenchmarkMetric metric,
-			double suppression)	{
-		System.out.println("Benchmarking [" +
-    			algo + ", " +
-    			privCriterium + ", " +
-    			dataset.getDatafile().toString() + ", " + 
-    			dataset.getCustomQiCount() + ", " + 
-    			metric.toString() + ", " +
-    			suppression + "]");
-	}
-
+	
+	/**
+	 * @param benchmark
+	 * @return the execution time of the last benchmark as reported in the benchmark log
+	 */
 	private static long getLastExecutionTimeMillis(Benchmark benchmark) {
 		Iterator<CSVLine> resultIterator = benchmark.getResults().iterator();
 		CSVLine lastResultLine = resultIterator.next();
