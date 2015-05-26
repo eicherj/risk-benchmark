@@ -19,11 +19,16 @@ package org.deidentifier.arx;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
+import org.deidentifier.arx.ProgressListener.Datapoint;
 import org.deidentifier.arx.QiConfiguredDataset.BenchmarkDatafile;
+import org.deidentifier.arx.RiskBasedBenchmarkSetup.Algorithm;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkMetric;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkPrivacyCriterium;
+import org.deidentifier.arx.metric.InformationLoss;
 
 import de.linearbits.subframe.Benchmark;
 import de.linearbits.subframe.analyzer.buffered.BufferedArithmeticMeanAnalyzer;
@@ -37,22 +42,33 @@ import de.linearbits.subframe.io.CSVLine;
 public class RiskBasedBenchmarkMain {
     
     /** Repetitions */
-    private static final int       REPETITIONS       = 3;
+    private static final int       REPETITIONS       = 2;
+    
+    private static final double NO_SOLUTION_FOUND = 0.0;
     
     /** The variables, over which the benchmark iterates */
-    private static final String[] BENCHMARK_VARIABLES = new String[] { "Criterium", "Dataset", "CustomQIs", "Metric", "Suppression", "Algorithm" };
+    private static final String[] BENCHMARK_VARIABLES           = new String[] {  "Criterium",
+                                                                                  "Dataset",
+                                                                                  "CustomQIs",
+                                                                                  "Metric",
+                                                                                  "Suppression",
+                                                                                  "Algorithm" };
     
     /** The benchmark instance */
-    private static final Benchmark BENCHMARK         = new Benchmark(BENCHMARK_VARIABLES);
+    private static final Benchmark  BENCHMARK                   = new Benchmark(BENCHMARK_VARIABLES);
+
     /** Label for execution times */
-    public static final int        EXECUTION_TIME    = BENCHMARK.addMeasure("Execution time");
+    public static final int         EXECUTION_TIME              = BENCHMARK.addMeasure("Execution time");
+    /** Label for solution discovery times */
+    public static final int         DISCOVERY_TIME              = BENCHMARK.addMeasure("Solution discovery time");
+    /** Label for info loss minimum */
+    public static final int         INFORMATION_LOSS_MINIMUM    = BENCHMARK.addMeasure("Information loss minimum");
 
     static {
-        BENCHMARK.addAnalyzer(EXECUTION_TIME, new BufferedArithmeticMeanAnalyzer(REPETITIONS));
-    }    
-    // TODO include information loss etc.
-
-    
+        BENCHMARK.addAnalyzer(EXECUTION_TIME,           new BufferedArithmeticMeanAnalyzer(REPETITIONS));
+        BENCHMARK.addAnalyzer(DISCOVERY_TIME,           new BufferedArithmeticMeanAnalyzer(REPETITIONS));
+        BENCHMARK.addAnalyzer(INFORMATION_LOSS_MINIMUM, new BufferedArithmeticMeanAnalyzer(REPETITIONS));
+    }        
 
     /**
      * Main entry point
@@ -88,11 +104,14 @@ public class RiskBasedBenchmarkMain {
                     	String resultFileName = "resultFlashCompare.csv";
                     	
                     	// perform the Flash run
-                        long avgExecutionTimeMillis = runAndRecordBenchmark(privCriterium, dataset, metric, suppression, "Flash", null, resultFileName);
+                        long avgExecutionTimeMillis = runAndRecordBenchmark(Algorithm.FLASH, privCriterium, dataset, metric, suppression, null, resultFileName);
                         
                         // perform a Heurakles run with the same configuration and the execution time
                         // of the previous Flash run as Heurakles' runtime limit
-                        runAndRecordBenchmark(privCriterium, dataset, metric, suppression, "Heurakles", avgExecutionTimeMillis, resultFileName);
+                        runAndRecordBenchmark(Algorithm.HEURAKLES, privCriterium, dataset, metric, suppression, avgExecutionTimeMillis, resultFileName);
+                        
+                        // perform an exhaustive Heurakles run examining the complete lattice
+                        runAndRecordBenchmark(Algorithm.HEURAKLES, privCriterium, dataset, metric, suppression, null, "resultsHeuraklesExhaustive.csv");
                     }
                 }
             }
@@ -116,7 +135,7 @@ public class RiskBasedBenchmarkMain {
                         // repeat for different QI counts
                         for (int qiCount : RiskBasedBenchmarkSetup.getSelfComparisonQiCounts()) {
                             QiConfiguredDataset dataset = new QiConfiguredDataset(datafile, qiCount);
-                            runAndRecordBenchmark(criterium, dataset, metric, suppression, "Heurakles", Long.valueOf(600000), "resultSelfCompare.csv");
+                            runAndRecordBenchmark(Algorithm.HEURAKLES, criterium, dataset, metric, suppression, Long.valueOf(600000), "resultSelfCompare.csv");
                         }
                     }
                 }
@@ -125,22 +144,22 @@ public class RiskBasedBenchmarkMain {
     }
 
 	/**
+	 * @param algo
 	 * @param privCriterium
 	 * @param dataset
 	 * @param metric
 	 * @param suppression
-	 * @param algo
 	 * @param runtimeLimitMillis
 	 * @param resultFileName
 	 * @return the execution time of the algorithm
 	 * @throws IOException
 	 */
 	private static long runAndRecordBenchmark(
+			Algorithm algo,
 			BenchmarkPrivacyCriterium privCriterium,
 			QiConfiguredDataset dataset,
 			BenchmarkMetric metric,
 			double suppression,
-			String algo,
 			Long runtimeLimitMillis,
 			String resultFileName) throws IOException {
         
@@ -152,17 +171,30 @@ public class RiskBasedBenchmarkMain {
     	ARXAnonymizer anonymizer = new ARXAnonymizer();
 		
         // build a algorithm configuration based on the benchmark parameters
-        ARXConfiguration anonConfig = RiskBasedBenchmarkSetup.prepareConfiguration(privCriterium, metric, suppression, runtimeLimitMillis);
+        ARXConfiguration anonConfig = RiskBasedBenchmarkSetup.prepareConfiguration(algo, privCriterium, metric, suppression, runtimeLimitMillis);
         
 		// start benchmarking
 		BENCHMARK.addRun(privCriterium.toString(), dataset.getDatafile().toString(), dataset.getCustomQiCount(), metric.toString(), suppression, algo);
 		for (int i = 0; i < REPETITIONS; i++) {
+		    ProgressListener progListener = new ProgressListener();
+		    // TODO: implement ARXAnonymizer.addProgressListener(ProgressListener listener)
+		    // anonymizer.addProgressListener(progListener);
 			BENCHMARK.startTimer(EXECUTION_TIME);
 		    ARXResult result = anonymizer.anonymize(dataset.toArxData(), anonConfig);
 		    BENCHMARK.addStopTimer(EXECUTION_TIME);
+		    if (progListener.solutionFound()) {
+		        // get the first and last datapoint
+                Datapoint fistDp = progListener.getDatapoints()[0];
+                Datapoint lastDp = progListener.getDatapoints()[progListener.getDatapoints().length - 1];
+		        BENCHMARK.addValue(DISCOVERY_TIME, lastDp.getTime() - fistDp.getTime());
+		        BENCHMARK.addValue(INFORMATION_LOSS_MINIMUM, lastDp.getLoss().getValue());
+		    } else {
+                BENCHMARK.addValue(DISCOVERY_TIME, NO_SOLUTION_FOUND);
+                BENCHMARK.addValue(INFORMATION_LOSS_MINIMUM, NO_SOLUTION_FOUND);
+		    }
 		}
 		
-		// Write results to file
+		// write results to file
 		BENCHMARK.getResults().write(new File(resultFileName));
 		
 		return getLastExecutionTimeMillis(BENCHMARK);

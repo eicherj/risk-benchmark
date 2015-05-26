@@ -24,19 +24,20 @@ import org.deidentifier.arx.QiConfiguredDataset.BenchmarkDatafile;
 import org.deidentifier.arx.criteria.KAnonymity;
 import org.deidentifier.arx.criteria.PopulationUniqueness;
 import org.deidentifier.arx.metric.Metric;
+import org.deidentifier.arx.metric.Metric.AggregateFunction;
 
 /**
  * This class encapsulates most of the parameters of a benchmark run
  * @author Fabian Prasser
  */
 public class RiskBasedBenchmarkSetup {
-	
+
     /**
      * Returns the datafiles for the Heurakles-Flash-Comparison
      * @return
      */
     public static BenchmarkDatafile[] getFlashComparisonDatafiles() {
-        return new BenchmarkDatafile[] { 
+        return new BenchmarkDatafile[] {
          BenchmarkDatafile.ADULT,
          BenchmarkDatafile.CUP,
          BenchmarkDatafile.FARS,
@@ -80,9 +81,9 @@ public class RiskBasedBenchmarkSetup {
      * @return
      */
     public static BenchmarkMetric[] getMetrics() {
-        return new BenchmarkMetric[] { 
+        return new BenchmarkMetric[] {
+         BenchmarkMetric.LOSS,
          BenchmarkMetric.AECS,
-         BenchmarkMetric.LOSS
         };
     }
     
@@ -142,6 +143,23 @@ public class RiskBasedBenchmarkSetup {
             }
         }
     }
+    
+
+    
+    public static enum Algorithm {
+        FLASH {
+            @Override
+            public String toString() {
+                return "Flash";
+            }
+        },
+        HEURAKLES {
+            @Override
+            public String toString() {
+                return "Heurakles";
+            }
+        }
+    }
 
     /**
      * @param criterium
@@ -151,13 +169,17 @@ public class RiskBasedBenchmarkSetup {
      * @return
      * @throws IOException
      */
-    public static ARXConfiguration prepareConfiguration(BenchmarkPrivacyCriterium criterium,
+    public static ARXConfiguration prepareConfiguration(Algorithm algo,
+                                                    BenchmarkPrivacyCriterium criterium,
                                                     BenchmarkMetric metric,
                                                     double suppression,
                                                     Long runTimeLimitMillis) throws IOException {
         
     	// create empty ARX configuration
         ARXConfiguration config = ARXConfiguration.create();
+        
+
+        // TODO implement configuration of Algorithm
         
         // configure privacy criterium
         switch (criterium) {
@@ -176,7 +198,7 @@ public class RiskBasedBenchmarkSetup {
         case AECS:config.setMetric(Metric.createAECSMetric());
             break;
         case LOSS:
-            config.setMetric(Metric.createLossMetric());
+            config.setMetric(Metric.createLossMetric(AggregateFunction.GEOMETRIC_MEAN));
             break;
         default:
             throw new RuntimeException("Invalid metric");        
@@ -185,7 +207,7 @@ public class RiskBasedBenchmarkSetup {
         // configure suppression factor
         config.setMaxOutliers(suppression);
         
-        // TODO implement configuration of runtimeLimit
+        // TODO implement configuration of runtime limit
         
         return config;
     }
