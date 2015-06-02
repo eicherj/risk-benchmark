@@ -93,8 +93,7 @@ public class RiskBasedBenchmarkMain {
         for (BenchmarkPrivacyCriterium privCriterium : RiskBasedBenchmarkSetup.getPrivacyCriteria()) {
         	
             // repeat for each data set
-            for (BenchmarkDatafile datafile : RiskBasedBenchmarkSetup.getFlashComparisonDatafiles()) {
-                QiConfiguredDataset dataset = new QiConfiguredDataset(datafile, datafile.equals(BenchmarkDatafile.ACS13) ? 9 : null);
+            for (QiConfiguredDataset dataset : RiskBasedBenchmarkSetup.getFlashComparisonDatasets()) {
                 
                 // repeat for each metric
                 for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {

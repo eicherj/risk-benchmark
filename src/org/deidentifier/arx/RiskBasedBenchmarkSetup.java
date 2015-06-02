@@ -36,14 +36,14 @@ public class RiskBasedBenchmarkSetup {
      * Returns the datafiles for the Heurakles-Flash-Comparison
      * @return
      */
-    public static BenchmarkDatafile[] getFlashComparisonDatafiles() {
-        return new BenchmarkDatafile[] {
-         BenchmarkDatafile.ADULT,
-         BenchmarkDatafile.CUP,
-         BenchmarkDatafile.FARS,
-         BenchmarkDatafile.ATUS,
-         BenchmarkDatafile.IHIS,
-         BenchmarkDatafile.ACS13,
+    public static QiConfiguredDataset[] getFlashComparisonDatasets() {
+        return new QiConfiguredDataset[] {
+         new QiConfiguredDataset(BenchmarkDatafile.ADULT, null),
+         new QiConfiguredDataset(BenchmarkDatafile.CUP, null),
+         new QiConfiguredDataset(BenchmarkDatafile.FARS, null),
+         new QiConfiguredDataset(BenchmarkDatafile.ATUS, null),
+         new QiConfiguredDataset(BenchmarkDatafile.IHIS, null),
+         new QiConfiguredDataset(BenchmarkDatafile.ACS13, 10),
         };
     }
     
