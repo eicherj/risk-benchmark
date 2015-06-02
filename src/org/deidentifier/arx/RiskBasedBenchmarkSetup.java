@@ -20,7 +20,7 @@ package org.deidentifier.arx;
 import java.io.IOException;
 
 import org.deidentifier.arx.ARXPopulationModel.Region;
-import org.deidentifier.arx.QiConfiguredDataset.BenchmarkDatafile;
+import org.deidentifier.arx.BenchmarkDataset.BenchmarkDatafile;
 import org.deidentifier.arx.criteria.KAnonymity;
 import org.deidentifier.arx.criteria.PopulationUniqueness;
 import org.deidentifier.arx.metric.Metric;
@@ -36,14 +36,14 @@ public class RiskBasedBenchmarkSetup {
      * Returns the datafiles for the Heurakles-Flash-Comparison
      * @return
      */
-    public static BenchmarkDatafile[] getFlashComparisonDatafiles() {
-        return new BenchmarkDatafile[] {
-         BenchmarkDatafile.ADULT,
-         BenchmarkDatafile.CUP,
-         BenchmarkDatafile.FARS,
-         BenchmarkDatafile.ATUS,
-         BenchmarkDatafile.IHIS,
-         BenchmarkDatafile.ACS13,
+    public static BenchmarkDataset[] getFlashComparisonDatasets() {
+        return new BenchmarkDataset[] {
+         new BenchmarkDataset(BenchmarkDatafile.ADULT, null),
+         new BenchmarkDataset(BenchmarkDatafile.CUP, null),
+         new BenchmarkDataset(BenchmarkDatafile.FARS, null),
+         new BenchmarkDataset(BenchmarkDatafile.ATUS, null),
+         new BenchmarkDataset(BenchmarkDatafile.IHIS, null),
+         new BenchmarkDataset(BenchmarkDatafile.ACS13, 10),
         };
     }
     

@@ -17,7 +17,7 @@ import org.deidentifier.arx.aggregates.HierarchyBuilder.Type;
      * @author helmut spengler
      *
      */
-    public class QiConfiguredDataset {
+    public class BenchmarkDataset {
         private BenchmarkDatafile datafile = null;
         private Integer customQiCount = null;
                 
@@ -25,7 +25,7 @@ import org.deidentifier.arx.aggregates.HierarchyBuilder.Type;
          * @param datafile
          * @param customQiCount
          */
-        public QiConfiguredDataset(BenchmarkDatafile datafile, Integer customQiCount) {
+        public BenchmarkDataset(BenchmarkDatafile datafile, Integer customQiCount) {
             this.datafile = datafile;
             this.customQiCount = customQiCount;
         }

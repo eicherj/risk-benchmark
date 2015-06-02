@@ -24,7 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.deidentifier.arx.ProgressListener.Datapoint;
-import org.deidentifier.arx.QiConfiguredDataset.BenchmarkDatafile;
+import org.deidentifier.arx.BenchmarkDataset.BenchmarkDatafile;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.Algorithm;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkMetric;
 import org.deidentifier.arx.RiskBasedBenchmarkSetup.BenchmarkPrivacyCriterium;
@@ -93,8 +93,7 @@ public class RiskBasedBenchmarkMain {
         for (BenchmarkPrivacyCriterium privCriterium : RiskBasedBenchmarkSetup.getPrivacyCriteria()) {
         	
             // repeat for each data set
-            for (BenchmarkDatafile datafile : RiskBasedBenchmarkSetup.getFlashComparisonDatafiles()) {
-                QiConfiguredDataset dataset = new QiConfiguredDataset(datafile, datafile.equals(BenchmarkDatafile.ACS13) ? 9 : null);
+            for (BenchmarkDataset dataset : RiskBasedBenchmarkSetup.getFlashComparisonDatasets()) {
                 
                 // repeat for each metric
                 for (BenchmarkMetric metric : RiskBasedBenchmarkSetup.getMetrics()) {
@@ -134,7 +133,7 @@ public class RiskBasedBenchmarkMain {
                     	
                         // repeat for different QI counts
                         for (int qiCount : RiskBasedBenchmarkSetup.getSelfComparisonQiCounts()) {
-                            QiConfiguredDataset dataset = new QiConfiguredDataset(datafile, qiCount);
+                            BenchmarkDataset dataset = new BenchmarkDataset(datafile, qiCount);
                             runAndRecordBenchmark(Algorithm.HEURAKLES, criterium, dataset, metric, suppression, Long.valueOf(600000), "resultSelfCompare.csv");
                         }
                     }
@@ -157,7 +156,7 @@ public class RiskBasedBenchmarkMain {
 	private static long runAndRecordBenchmark(
 			Algorithm algo,
 			BenchmarkPrivacyCriterium privCriterium,
-			QiConfiguredDataset dataset,
+			BenchmarkDataset dataset,
 			BenchmarkMetric metric,
 			double suppression,
 			Long runtimeLimitMillis,
