@@ -10,8 +10,8 @@ import org.deidentifier.arx.aggregates.HierarchyBuilder.Type;
     
 
     /**
-     * this class encapsulates the configuration of a dataset the location 
-     * and loading of its
+     * this class encapsulates the configuration of a dataset, the location 
+     * and loading of
      * its data- and hierarchy-files from the filesystem as well as the number of QIs
      * actually used for the dataest
      * @author helmut spengler
